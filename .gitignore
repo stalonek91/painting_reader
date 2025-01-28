@@ -1,2 +1,4 @@
 .env
 painting_reader/
+paintings/
+.DS_Store

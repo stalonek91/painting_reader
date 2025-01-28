@@ -16,4 +16,17 @@ if not st.session_state.get("openai_key"):
     
     else:
         st.info("Provide Your OPENAI API key to continue")
+        st.session_state["openai_key"] = st.text_input("Klucz OPEN_AI: ")
+        if st.session_state["openai_key"]:
+            st.rerun()
 
+
+if not st.session_state.get("openai_key"):
+    st.stop()
+
+st.title("Painting reader")
+uploaded_files = st.file_uploader(label="Zalacz pliki z Twoimi obrazami", accept_multiple_files=True)
+
+if uploaded_files:
+    for image in uploaded_files:
+        st.image(image)
