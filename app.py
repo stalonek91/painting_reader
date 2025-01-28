@@ -1,13 +1,29 @@
 import streamlit as st
 from openai import OpenAI
 from dotenv import dotenv_values
+import base64
+import instructor
+
+from models import PaintingInfo
 
 st.set_page_config(page_title="Painting reader", layout="centered")
 
 config = dotenv_values(".env")
 
-def get_openai_key():
-    return OpenAI(api_key=st.session_state["openai_key"])
+
+st.title("Painting reader")
+uploaded_files = st.file_uploader(label="Zalacz pliki z Twoimi obrazami", accept_multiple_files=True)
+
+if uploaded_files:
+    st.success(f"Successfully loaded {len(uploaded_files)} image(s).")
+
+    for image in uploaded_files:
+        st.image(image)
+
+        print(f"Preparing openai")
+        image_description = send_openai_query(image)
+        st.write(image_description)
+
 
 if not st.session_state.get("openai_key"):
     if "API_KEY" in config:
@@ -28,5 +44,15 @@ st.title("Painting reader")
 uploaded_files = st.file_uploader(label="Zalacz pliki z Twoimi obrazami", accept_multiple_files=True)
 
 if uploaded_files:
+    st.success(f"Successfully loaded {len(uploaded_files)} image(s).")
+
     for image in uploaded_files:
         st.image(image)
+
+        print(f"Preparing openai")
+        image_description = send_openai_query(image)
+        st.write(image_description)
+
+
+
+
