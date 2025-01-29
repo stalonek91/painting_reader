@@ -24,7 +24,9 @@ def return_openai_instructor():
 
 
 def generate_data_for_image(uploaded_files, response_model=PaintingInfo):
+    responses = []
     for file in uploaded_files:
+        
         res = return_openai_instructor().chat.completions.create(
             model="gpt-4o",
             response_model=response_model,
@@ -48,7 +50,9 @@ def generate_data_for_image(uploaded_files, response_model=PaintingInfo):
             ],
         )
 
-    return res.model_dump()
+        responses.append(res.model_dump())
+
+    return responses
 
 
 
@@ -68,14 +72,18 @@ if not st.session_state.get("openai_key"):
     st.stop()
 
 st.title("Painting reader")
-uploaded_files = st.file_uploader(label="Zalacz pliki z Twoimi obrazami", accept_multiple_files=True)
+
+with st.sidebar:
+    uploaded_files = st.file_uploader(label="Zalacz pliki z Twoimi obrazami", accept_multiple_files=True)
+    st.success(f"Successfully loaded {len(uploaded_files)} image(s).")
 
 if uploaded_files:
-    st.success(f"Successfully loaded {len(uploaded_files)} image(s).")
+    
     st.image(uploaded_files, width=400)
 
     st.write("Opis obrazka: ")
 
-    st.write(generate_data_for_image(uploaded_files=uploaded_files))
+    with st.spinner("Generating painting details..."):
+        st.write(generate_data_for_image(uploaded_files=uploaded_files))
 
 
