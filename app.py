@@ -10,19 +10,45 @@ st.set_page_config(page_title="Painting reader", layout="centered")
 
 config = dotenv_values(".env")
 
+def prepare_image_for_openai(image_file):
 
-st.title("Painting reader")
-uploaded_files = st.file_uploader(label="Zalacz pliki z Twoimi obrazami", accept_multiple_files=True)
+    image_data = base64.b64encode(image_file.read()).decode('utf-8')
+    return f"data:image/png;base64,{image_data}"
 
-if uploaded_files:
-    st.success(f"Successfully loaded {len(uploaded_files)} image(s).")
+def return_openai_instructor():
+    openai_client = OpenAI(api_key=config["API_KEY"])
+    instructor_openai_client = instructor.from_openai(openai_client)
 
-    for image in uploaded_files:
-        st.image(image)
+    return instructor_openai_client
 
-        print(f"Preparing openai")
-        image_description = send_openai_query(image)
-        st.write(image_description)
+
+
+def generate_data_for_image(image_path, response_model):
+    res = return_openai_instructor().chat.completions.create(
+        model="gpt-4o",
+        response_model=response_model,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Pobierz szczegóły na temat obrazu.",
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": prepare_image_for_openai(image_path),
+                            "detail": "high"
+                        },
+                    },
+                ],
+            },
+        ],
+    )
+
+    return res.model_dump()
+
 
 
 if not st.session_state.get("openai_key"):
@@ -46,12 +72,6 @@ uploaded_files = st.file_uploader(label="Zalacz pliki z Twoimi obrazami", accept
 if uploaded_files:
     st.success(f"Successfully loaded {len(uploaded_files)} image(s).")
 
-    for image in uploaded_files:
-        st.image(image)
-
-        print(f"Preparing openai")
-        image_description = send_openai_query(image)
-        st.write(image_description)
 
 
 
