@@ -78,12 +78,15 @@ with st.sidebar:
     st.success(f"Successfully loaded {len(uploaded_files)} image(s).")
 
 if uploaded_files:
+
+    tab_names = [file.name for file in uploaded_files]
+    tabs = st.tabs(tab_names)
     
-    st.image(uploaded_files, width=400)
-
-    st.write("Opis obrazka: ")
-
     with st.spinner("Generating painting details..."):
-        st.write(generate_data_for_image(uploaded_files=uploaded_files))
+        responses = generate_data_for_image(uploaded_files=uploaded_files)
 
-
+    for tab, file, response in zip(tabs, uploaded_files, responses):
+        with tab:
+            st.image(file, caption=file.name, use_container_width=True)
+            st.write("### Opis obrazu:")
+            st.write(response)
