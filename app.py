@@ -23,29 +23,30 @@ def return_openai_instructor():
 
 
 
-def generate_data_for_image(image_path, response_model):
-    res = return_openai_instructor().chat.completions.create(
-        model="gpt-4o",
-        response_model=response_model,
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": "Pobierz szczegóły na temat obrazu.",
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": prepare_image_for_openai(image_path),
-                            "detail": "high"
+def generate_data_for_image(uploaded_files, response_model=PaintingInfo):
+    for file in uploaded_files:
+        res = return_openai_instructor().chat.completions.create(
+            model="gpt-4o",
+            response_model=response_model,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Pobierz szczegóły na temat obrazu.",
                         },
-                    },
-                ],
-            },
-        ],
-    )
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": prepare_image_for_openai(file),
+                                "detail": "high"
+                            },
+                        },
+                    ],
+                },
+            ],
+        )
 
     return res.model_dump()
 
@@ -71,8 +72,10 @@ uploaded_files = st.file_uploader(label="Zalacz pliki z Twoimi obrazami", accept
 
 if uploaded_files:
     st.success(f"Successfully loaded {len(uploaded_files)} image(s).")
+    st.image(uploaded_files, width=400)
 
+    st.write("Opis obrazka: ")
 
-
+    st.write(generate_data_for_image(uploaded_files=uploaded_files))
 
 
