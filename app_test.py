@@ -40,10 +40,11 @@ if not st.session_state.get("openai_key"):
     st.stop()
 
 
-st.title("Painting reader")
+st.title("ArtExplorer :male-artist:")
 
 with st.sidebar:
-    uploaded_files = st.file_uploader(label="Zalacz pliki z Twoimi obrazami", accept_multiple_files=True)
+    st.header("Upload Your images")
+    uploaded_files = st.file_uploader(label=" ",accept_multiple_files=True)
 
     if uploaded_files:
         st.success(f"Successfully loaded {len(uploaded_files)} image(s).")
