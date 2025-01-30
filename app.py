@@ -23,9 +23,9 @@ def return_openai_instructor():
 
 def generate_data_for_text(painting_details, response_model=New_paint):
     res = return_openai_instructor().chat.completions.create(
-    model="gpt-4o-mini",
+    model="gpt-4o",
     response_model=response_model,
-    temperature=0,
+    temperature=1,
     # n=2 #TODO bedzie to potrzebne do liczenia zuzycia
     messages=[
         {
@@ -130,13 +130,11 @@ if uploaded_files:
             st.markdown(f"> {response['description_of_historical_event_in_3_sentences']}")
             print(type(response))
 
-            
-
-            with st.expander("Click here for new painting reccomendation :arrow_double_down:"):
-
+            if st.button("Generate Recommendation", key=f"btn_{file.name}"):
                 reccomendation_response = generate_data_for_text(response)
-                
-                st.markdown(f"**Title:** {reccomendation_response['title']}")
-                st.markdown(f"**Author:** {reccomendation_response['author']}")
-                st.markdown(f"**Year:** {reccomendation_response['year']}")
+
+                with st.expander("Click here for new painting recomendation :arrow_double_down:"):              
+                    st.markdown(f"**Title:** {reccomendation_response['title']}")
+                    st.markdown(f"**Author:** {reccomendation_response['author']}")
+                    st.markdown(f"**Year:** {reccomendation_response['year']}")
                 
