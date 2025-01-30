@@ -72,12 +72,17 @@ if not st.session_state.get("openai_key"):
 if not st.session_state.get("openai_key"):
     st.stop()
 
-st.title("Painting reader")
+st.title("ArtExplorer :male-artist:")
 
 with st.sidebar:
-    uploaded_files = st.file_uploader(label="Zalacz pliki z Twoimi obrazami", accept_multiple_files=True)
+    st.header("Upload Your images :arrow_lower_left:")
+    uploaded_files = st.file_uploader(label=" ",
+                                      accept_multiple_files=True,
+                                      type=["png", "jpg", "jpeg", "gif", "bmp"])
+
     if uploaded_files:
         st.success(f"Successfully loaded {len(uploaded_files)} image(s).")
+
 
 if uploaded_files:
 
@@ -85,10 +90,22 @@ if uploaded_files:
     tabs = st.tabs(tab_names)
     
     with st.spinner("Generating painting details..."):
-        responses = generate_data_for_image(uploaded_files=uploaded_files)
+        try:
+            responses = generate_data_for_image(uploaded_files=uploaded_files)
+
+        except Exception as e:
+            st.error(f"An error occurred: {e}")
+
+            
 
     for tab, file, response in zip(tabs, uploaded_files, responses):
         with tab:
             st.image(file, caption=file.name, use_container_width=True)
-            st.write("### Opis obrazu:")
-            st.json(response)
+            st.markdown(f"**Title:** {response['title']}")
+            st.markdown(f"**Author:** {response['author']}")
+            st.markdown(f"**Year:** {response['year']}")
+            
+            # Możemy dodać opis jako tekst w 3 zdaniach
+            st.markdown(f"**Description:**")
+            st.markdown(f"> {response['description_of_historical_event_in_3_sentences']}")
+            print(type(response))
