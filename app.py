@@ -4,7 +4,7 @@ from dotenv import dotenv_values
 import base64
 import instructor
 
-from models import PaintingInfo
+from models import PaintingInfo, New_paint
 
 st.set_page_config(page_title="Painting reader", layout="centered")
 
@@ -21,6 +21,26 @@ def return_openai_instructor():
 
     return instructor_openai_client
 
+def generate_data_for_text(painting_details, response_model=New_paint):
+    res = return_openai_instructor().chat.completions.create(
+    model="gpt-4o-mini",
+    response_model=response_model,
+    temperature=0,
+    # n=2 #TODO bedzie to potrzebne do liczenia zuzycia
+    messages=[
+        {
+            "role": "user",
+            "content": f"""
+            Zaproponuj sympatykowi sztuki 2 obrazy o podobnej tematyce co {painting_details}.
+            Zwroc go w formacie Tytul, Autor oraz URL pod ktorym mozna ten obraz znalezc
+            """,
+        },
+            ],
+    
+    )
+    return res.model_dump()
+    
+    
 
 
 def generate_data_for_image(uploaded_files, response_model=PaintingInfo):
@@ -109,3 +129,14 @@ if uploaded_files:
             st.markdown(f"**Description:**")
             st.markdown(f"> {response['description_of_historical_event_in_3_sentences']}")
             print(type(response))
+
+            
+
+            with st.expander("Click here for new painting reccomendation :arrow_double_down:"):
+
+                reccomendation_response = generate_data_for_text(response)
+                
+                st.markdown(f"**Title:** {reccomendation_response['title']}")
+                st.markdown(f"**Author:** {reccomendation_response['author']}")
+                st.markdown(f"**Year:** {reccomendation_response['year']}")
+                
