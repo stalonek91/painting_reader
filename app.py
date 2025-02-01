@@ -44,7 +44,7 @@ def generate_data_for_text(painting_details, response_model=New_paint):
     tokens_used = response['total_tokens_usage_cost_text_to_text']
     st.session_state["total_tokens_used"] += tokens_used
     print(f"PRINTUJE RESPONSE total usage: {tokens_used}")
-    
+
     return response
     
     
@@ -77,9 +77,14 @@ def generate_data_for_image(uploaded_files, response_model=PaintingInfo):
             ],
         )
 
-        responses.append(res.model_dump())
+        response = res.model_dump()
+        tokens_used = response['total_tokens_usage_cost_image_to_text']          
+        st.session_state["total_tokens_used"] += tokens_used
+        
+        print(f"PRINTUJE RESPONSE total usage for image {file.name}: {tokens_used}")
 
-    print(f"PRINTUJE RESPONSE z obrazu: {responses}")
+        responses.append(response)
+        print(responses)
     return responses
 
 
@@ -112,6 +117,8 @@ with st.sidebar:
     if uploaded_files:
         st.success(f"Successfully loaded {len(uploaded_files)} image(s).")
 
+    st.write(st.session_state["total_tokens_used"])
+
 
 if uploaded_files:
 
@@ -138,6 +145,8 @@ if uploaded_files:
             st.markdown(f"**Description:**")
             st.markdown(f"> {response['description_of_historical_event_in_3_sentences']}")
             print(type(response))
+
+            st.markdown(f"**Tokens used for this image:** {response['total_tokens_usage_cost_image_to_text']}")
 
             if st.button("Generate Recommendation", key=f"btn_{file.name}"):
                 reccomendation_response = generate_data_for_text(response)
