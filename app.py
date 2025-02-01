@@ -32,12 +32,14 @@ def generate_data_for_text(painting_details, response_model=New_paint):
             "role": "user",
             "content": f"""
             Zaproponuj sympatykowi sztuki 2 obrazy o podobnej tematyce co {painting_details}.
-            Zwroc go w formacie Tytul, Autor oraz URL pod ktorym mozna ten obraz znalezc
+            Zwroc go w formacie Tytul, Autor oraz URL pod ktorym mozna ten obraz znalezc.
+            Zwroc rowniez informacje o zuzytych tokenach do tego zapytania tak by mozna bylo to przeliczyc na koszt w dolarach.
             """,
         },
             ],
     
     )
+    print(f"PRINTUJE RESPONSE: {res.model_dump()}")
     return res.model_dump()
     
     
@@ -56,7 +58,7 @@ def generate_data_for_image(uploaded_files, response_model=PaintingInfo):
                     "content": [
                         {
                             "type": "text",
-                            "text": "Pobierz szczegóły na temat obrazu.",
+                            "text": "Pobierz szczegóły na temat obrazu.Zwroc rowniez informacje o zuzytych tokenach do tego zapytania tak by mozna bylo to przeliczyc na koszt w dolarach.",
                         },
                         {
                             "type": "image_url",
@@ -72,7 +74,7 @@ def generate_data_for_image(uploaded_files, response_model=PaintingInfo):
 
         responses.append(res.model_dump())
 
-    print(responses)
+    print(f"PRINTUJE RESPONSE z obrazu: {responses}")
     return responses
 
 
