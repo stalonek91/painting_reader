@@ -39,8 +39,13 @@ def generate_data_for_text(painting_details, response_model=New_paint):
             ],
     
     )
-    print(f"PRINTUJE RESPONSE: {res.model_dump()}")
-    return res.model_dump()
+
+    response = res.model_dump()
+    tokens_used = response['total_tokens_usage_cost_text_to_text']
+    st.session_state["total_tokens_used"] += tokens_used
+    print(f"PRINTUJE RESPONSE total usage: {tokens_used}")
+    
+    return response
     
     
 
@@ -77,6 +82,8 @@ def generate_data_for_image(uploaded_files, response_model=PaintingInfo):
     print(f"PRINTUJE RESPONSE z obrazu: {responses}")
     return responses
 
+
+st.session_state["total_tokens_used"] = st.session_state.get("total_tokens_used", 0)
 
 
 if not st.session_state.get("openai_key"):
