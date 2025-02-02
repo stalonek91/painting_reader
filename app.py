@@ -3,6 +3,12 @@ from openai import OpenAI
 from dotenv import dotenv_values
 import base64
 import instructor
+from io import BytesIO
+import tempfile
+
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+from reportlab.lib import colors
 
 PRICE_FOR_IMAGE = 0.0000075
 PRICE_FOR_TEXT = 0.00001 
@@ -16,9 +22,72 @@ config = dotenv_values(".env")
 st.session_state["total_tokens_used"] = st.session_state.get("total_tokens_used", 0)
 
 
+def create_pdf(uploaded_files, painting_responses):
+    """
+    Tworzy PDF z obrazami, opisami i rekomendacjami.
+    """
+    pdf_path = "generated_painting_report.pdf"
+    c = canvas.Canvas(pdf_path, pagesize=letter)
+    
+   
+    add_title_to_pdf(c)
+    
+    y_position = 730  # Początkowa pozycja na stronie (od góry)
+    
+    for file, response in zip(uploaded_files, painting_responses):
+        
+        y_position = add_image_and_description(c, file, response, y_position)
+
+        
+        if y_position < 100:
+            c.showPage()  
+            y_position = 730  
+    
+    c.save()  
+    return pdf_path
+
+def add_title_to_pdf(c):
+   
+    c.setFont("Helvetica", 16)
+    c.drawString(100, 750, "Painting Report - ArtExplorer")
+
+def add_image_and_description(c, file, response, y_position):
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpfile:
+        tmpfile.write(file.read())  # Write the content of the uploaded file to the temp file
+        tmpfile_path = tmpfile.name  # Get the path of the temporary file
+   
+    c.drawImage(tmpfile_path, 100, y_position, width=200, height=200)
+    c.setFont("Helvetica", 10)
+    c.drawString(100, y_position - 30, f"Title: {response['title']}")
+    c.drawString(100, y_position - 45, f"Author: {response['author']}")
+    c.drawString(100, y_position - 60, f"Year: {response['year']}")
+    c.drawString(100, y_position - 75, f"Description: {response['description_of_historical_event_in_3_sentences']}")
+    y_position -= 120 
+    return y_position
+
+def generate_pdf_button(uploaded_files):
+    if st.button("Generate PDF with Paintings and Recommendations"):
+        
+        if "painting_responses" not in st.session_state:
+            st.error("Painting responses not available yet. Please generate painting details first.")
+            return
+
+        painting_responses = st.session_state["painting_responses"]
+        
+        pdf_path = create_pdf(uploaded_files, painting_responses)
+
+        
+        with open(pdf_path, "rb") as f:
+            pdf_data = f.read()
+            st.download_button(
+                label="Download your PDF",
+                data=pdf_data,
+                file_name="Painting_Report.pdf",
+                mime="application/pdf"
+            )
+
 def prepare_image_for_openai(image_file):
-
-
     image_data = base64.b64encode(image_file.read()).decode('utf-8')
     return f"data:image/png;base64,{image_data}"
 
@@ -135,6 +204,9 @@ with st.sidebar:
         st.metric(f"Total cost:",  f"{round(st.session_state['total_tokens_used'], 4)}$")
         # st.header(f"Total cost: {round(st.session_state['total_tokens_used'], 4)}$")
 
+        st.header("Download Your PDF")
+        generate_pdf_button(uploaded_files)
+
 
 
             
@@ -159,8 +231,14 @@ if uploaded_files:
                 if submit_button:
                     with st.spinner("Generating painting details..."):
                         try:
-                            response = generate_data_for_image([file])[0]  # Pobieramy dane dla obrazu
+                            response = generate_data_for_image([file])[0]  
                             st.session_state[tab_key] = response
+
+                            if "painting_responses" not in st.session_state:
+                                st.session_state["painting_responses"] = []
+
+                            st.session_state["painting_responses"].append(response)
+
                         except Exception as e:
                             st.error(f"An error occurred: {e}")
 
