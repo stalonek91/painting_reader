@@ -132,14 +132,11 @@ with st.sidebar:
 
     if uploaded_files:
         
-        st.success(f"Successfully loaded {len(uploaded_files)} image(s).")
-        st.write(f"Total cost: {st.session_state['total_tokens_used']}$")
+        st.metric(f"Total cost:",  f"{round(st.session_state['total_tokens_used'], 4)}$")
+        # st.header(f"Total cost: {round(st.session_state['total_tokens_used'], 4)}$")
 
-        with st.form(key="refresh_tokens"):
-            submit_button = st.form_submit_button(label="Refresh app cost")
 
-        if submit_button:
-            update_token_usage_display()
+
             
 
 
@@ -157,7 +154,7 @@ if uploaded_files:
                 st.session_state[tab_key] = None
 
             with st.form(key=f"form_{file.name}"):
-                submit_button = st.form_submit_button(label="Generate Image Details & Recommendation", type="primary")
+                submit_button = st.form_submit_button(label="Click Here to generate painting description", type="tertiary")
     
                 if submit_button:
                     with st.spinner("Generating painting details..."):
@@ -184,7 +181,7 @@ if uploaded_files:
 
             # Formularz do generowania rekomendacji
                 with st.form(key=f"form_rec_{file.name}"):
-                    submit_recommendation = st.form_submit_button(label="Generate Recommendation", type="primary")
+                    submit_recommendation = st.form_submit_button(label="Generate Recommendation", type="tertiary")
 
                     if submit_recommendation:
                         st.session_state[rec_key] = generate_data_for_text(response)
@@ -192,8 +189,8 @@ if uploaded_files:
 
             # Wyświetlenie rekomendacji, jeśli została wygenerowana
                 if st.session_state[rec_key]:
-                    with st.expander("Click here for new painting recommendation :arrow_double_down:"):
-                        rec = st.session_state[rec_key]
-                        st.markdown(f"**Title:** {rec['title']}")
-                        st.markdown(f"**Author:** {rec['author']}")
-                        st.markdown(f"**Year:** {rec['year']}")
+                    
+                    rec = st.session_state[rec_key]
+                    st.markdown(f"**Title:** {rec['title']}")
+                    st.markdown(f"**Author:** {rec['author']}")
+                    st.markdown(f"**Year:** {rec['year']}")
