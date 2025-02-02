@@ -102,7 +102,8 @@ def generate_data_for_image(uploaded_files, response_model=PaintingInfo):
 
     return responses
 
-
+def update_token_usage_display():
+    st.session_state["total_tokens_used_display"] = st.session_state["total_tokens_used"]
 
 
 
@@ -132,48 +133,67 @@ with st.sidebar:
     if uploaded_files:
         
         st.success(f"Successfully loaded {len(uploaded_files)} image(s).")
-
         st.write(f"Total cost: {st.session_state['total_tokens_used']}$")
+
+        with st.form(key="refresh_tokens"):
+            submit_button = st.form_submit_button(label="Refresh app cost")
+
+        if submit_button:
+            update_token_usage_display()
+            
 
 
 
 if uploaded_files:
 
-    st.session_state["should_generate_data"] = True
     tab_names = [file.name for file in uploaded_files]
     tabs = st.tabs(tab_names)
-    
 
-    with st.spinner("Generating painting details..."):
-        try:
-            responses = generate_data_for_image(uploaded_files=uploaded_files)
-            
-
-        except Exception as e:
-            st.error(f"An error occurred: {e}")
-
-
-
-    for tab, file, response in zip(tabs, uploaded_files, responses):
+    for tab, file in zip(tabs, uploaded_files):
         with tab:
-            
-            st.image(file, caption=file.name, use_container_width=True)
-            st.markdown(f"**Title:** {response['title']}")
-            st.markdown(f"**Author:** {response['author']}")
-            st.markdown(f"**Year:** {response['year']}")
-            
-            # Możemy dodać opis jako tekst w 3 zdaniach
-            st.markdown(f"**Description:**")
-            st.markdown(f"> {response['description_of_historical_event_in_3_sentences']}")
-            
+            tab_key = f"tab_{file.name}"
 
+            if tab_key not in st.session_state:
+                st.session_state[tab_key] = None
 
-            if st.button("Generate Recommendation", key=f"btn_{file.name}"):
-                reccomendation_response = generate_data_for_text(response)
-                
+            with st.form(key=f"form_{file.name}"):
+                submit_button = st.form_submit_button(label="Generate Image Details & Recommendation", type="primary")
+    
+                if submit_button:
+                    with st.spinner("Generating painting details..."):
+                        try:
+                            response = generate_data_for_image([file])[0]  # Pobieramy dane dla obrazu
+                            st.session_state[tab_key] = response
+                        except Exception as e:
+                            st.error(f"An error occurred: {e}")
 
-                with st.expander("Click here for new painting recomendation :arrow_double_down:"):              
-                    st.markdown(f"**Title:** {reccomendation_response['title']}")
-                    st.markdown(f"**Author:** {reccomendation_response['author']}")
-                    st.markdown(f"**Year:** {reccomendation_response['year']}")
-                
+                    st.rerun()
+    
+            if st.session_state[tab_key]:
+                response = st.session_state[tab_key]
+                st.image(file, caption=file.name, use_container_width=True)
+                st.markdown(f"**Title:** {response['title']}")
+                st.markdown(f"**Author:** {response['author']}")
+                st.markdown(f"**Year:** {response['year']}")
+                st.markdown(f"**Description:**")
+                st.markdown(f"> {response['description_of_historical_event_in_3_sentences']}")
+
+                rec_key = f"rec_{file.name}"
+                if rec_key not in st.session_state:
+                    st.session_state[rec_key] = None
+
+            # Formularz do generowania rekomendacji
+                with st.form(key=f"form_rec_{file.name}"):
+                    submit_recommendation = st.form_submit_button(label="Generate Recommendation", type="primary")
+
+                    if submit_recommendation:
+                        st.session_state[rec_key] = generate_data_for_text(response)
+                        st.rerun()
+
+            # Wyświetlenie rekomendacji, jeśli została wygenerowana
+                if st.session_state[rec_key]:
+                    with st.expander("Click here for new painting recommendation :arrow_double_down:"):
+                        rec = st.session_state[rec_key]
+                        st.markdown(f"**Title:** {rec['title']}")
+                        st.markdown(f"**Author:** {rec['author']}")
+                        st.markdown(f"**Year:** {rec['year']}")
