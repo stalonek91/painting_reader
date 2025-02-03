@@ -9,9 +9,14 @@ import tempfile
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from reportlab.lib import colors
+from reportlab.lib.utils import simpleSplit
 
 PRICE_FOR_IMAGE = 0.0000075
 PRICE_FOR_TEXT = 0.00001 
+
+PAGE_WIDTH, PAGE_HEIGHT = letter
+MARGIN = 50  # Margines strony
+LINE_HEIGHT = 14 
 
 from models import PaintingInfo, New_paint
 
@@ -29,43 +34,101 @@ def create_pdf(uploaded_files, painting_responses):
     pdf_path = "generated_painting_report.pdf"
     c = canvas.Canvas(pdf_path, pagesize=letter)
     
-   
     add_title_to_pdf(c)
     
     y_position = 730  # Początkowa pozycja na stronie (od góry)
     
     for file, response in zip(uploaded_files, painting_responses):
-        
         y_position = add_image_and_description(c, file, response, y_position)
 
-        
         if y_position < 100:
             c.showPage()  
             y_position = 730  
     
+    add_recommendations(c, y_position)
     c.save()  
     return pdf_path
 
 def add_title_to_pdf(c):
-   
-    c.setFont("Helvetica", 16)
-    c.drawString(100, 750, "Painting Report - ArtExplorer")
+
+    c.setFont("Courier-Bold", 28)
+    c.drawCentredString(PAGE_WIDTH / 2, PAGE_HEIGHT - 50, "Painting Report - ArtExplorer")
+    
+    # Zwiększenie odstępu po tytule
+    y_position = PAGE_HEIGHT - 100  # Zwiększ o 50 (możesz dostosować według potrzeby)
+
+    # Dodanie linii oddzielającej tytuł od obrazu
+    c.setStrokeColor(colors.black)  # Ustawienie koloru linii (czarny)
+    c.setLineWidth(1)  # Grubość linii
+    c.line(MARGIN, y_position, PAGE_WIDTH - MARGIN, y_position)  # Narysowanie linii poziomej
+
+    # Zwróć zmodyfikowaną pozycję Y
+    return y_position - 10 
 
 def add_image_and_description(c, file, response, y_position):
-
+    """
+    Dodaje obraz oraz jego opis do PDF.
+    """
+    # Zapisz obraz jako plik tymczasowy
     with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpfile:
-        tmpfile.write(file.read())  # Write the content of the uploaded file to the temp file
-        tmpfile_path = tmpfile.name  # Get the path of the temporary file
-   
-    c.drawImage(tmpfile_path, 100, y_position, width=200, height=200)
-    c.setFont("Helvetica", 10)
-    c.drawString(100, y_position - 30, f"Title: {response['title']}")
-    c.drawString(100, y_position - 45, f"Author: {response['author']}")
-    c.drawString(100, y_position - 60, f"Year: {response['year']}")
-    c.drawString(100, y_position - 75, f"Description: {response['description_of_historical_event_in_3_sentences']}")
-    y_position -= 120 
+        tmpfile.write(file.read())
+        tmpfile_path = tmpfile.name
+
+    img_width = 400  # Powiększona szerokość obrazu
+    img_height = 300  # Powiększona wysokość obrazu
+
+    if y_position - img_height < MARGIN:
+        c.showPage()
+        y_position = PAGE_HEIGHT - MARGIN
+
+    y_position -= 75
+
+    c.drawImage(tmpfile_path, 100, y_position - img_height, width=img_width, height=img_height)
+    y_position -= img_height + 10
+
+    # Pobranie szczegółowych informacji o obrazie
+    title = response.get("title", "Unknown Title")
+    author = response.get("author", "Unknown Author")
+    year = response.get("year", "Unknown Year")
+    description = response.get("description_of_historical_event_in_3_sentences", "Brak opisu")
+
+    text_lines = [
+        f"Title: {title}",
+        f"Author: {author}",
+        f"Year: {year}",
+        "Description:",
+    ] + simpleSplit(description, 'Helvetica', LINE_HEIGHT, PAGE_WIDTH - 2 * MARGIN)
+    
+    for line in text_lines:
+        if y_position - LINE_HEIGHT < MARGIN:
+            c.showPage()
+            y_position = PAGE_HEIGHT - MARGIN
+        c.drawString(MARGIN, y_position, line)
+        y_position -= LINE_HEIGHT
+    
     return y_position
 
+def add_recommendations(c, y_position):
+    """
+    Dodaje sekcję rekomendacji do PDF.
+    """
+    recommendations = [
+        {"title": "The Surrender of Breda", "author": "Diego Velázquez", "year": "1634"}
+    ]
+    
+    if y_position - 50 < MARGIN:
+        c.showPage()
+        y_position = PAGE_HEIGHT - MARGIN
+    
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(MARGIN, y_position, "Recommended Paintings:")
+    y_position -= 20
+    
+    c.setFont("Helvetica", 12)
+    for rec in recommendations:
+        rec_text = f"Title: {rec['title']}, Author: {rec['author']}, Year: {rec['year']}"
+        c.drawString(MARGIN, y_position, rec_text)
+        y_position -= LINE_HEIGHT
 def generate_pdf_button(uploaded_files):
     if st.button("Generate PDF with Paintings and Recommendations"):
         
@@ -227,7 +290,7 @@ if uploaded_files:
 
             with st.form(key=f"form_{file.name}"):
                 submit_button = st.form_submit_button(label="Click Here to generate painting description", type="tertiary")
-    
+                st.image(file, caption=file.name, use_container_width=True)
                 if submit_button:
                     with st.spinner("Generating painting details..."):
                         try:
@@ -246,7 +309,7 @@ if uploaded_files:
     
             if st.session_state[tab_key]:
                 response = st.session_state[tab_key]
-                st.image(file, caption=file.name, use_container_width=True)
+                
                 st.markdown(f"**Title:** {response['title']}")
                 st.markdown(f"**Author:** {response['author']}")
                 st.markdown(f"**Year:** {response['year']}")
