@@ -27,7 +27,7 @@ config = dotenv_values(".env")
 st.session_state["total_tokens_used"] = st.session_state.get("total_tokens_used", 0)
 
 
-def create_pdf(uploaded_files, painting_responses):
+def create_pdf(uploaded_files, painting_responses, recommendations_dict):
     """
     Tworzy PDF z obrazami, opisami i rekomendacjami.
     """
@@ -41,11 +41,18 @@ def create_pdf(uploaded_files, painting_responses):
     for file, response in zip(uploaded_files, painting_responses):
         y_position = add_image_and_description(c, file, response, y_position)
 
+        painting_title = response.get("title", file.name)
+        print(f"create_pdf: painting_title = {painting_title}, type = {type(painting_title)}")
+
+        if painting_title in recommendations_dict:
+            print(f"create_pdf: recommendations_dict[{painting_title}] = {recommendations_dict[painting_title]}")
+            y_position = add_recommendations(c, y_position, recommendations_dict[painting_title])
+
         if y_position < 100:
             c.showPage()  
             y_position = 730  
     
-    add_recommendations(c, y_position)
+    
     c.save()  
     return pdf_path
 
@@ -55,15 +62,15 @@ def add_title_to_pdf(c):
     c.drawCentredString(PAGE_WIDTH / 2, PAGE_HEIGHT - 50, "Painting Report - ArtExplorer")
     
     # Zwiększenie odstępu po tytule
-    y_position = PAGE_HEIGHT - 100  # Zwiększ o 50 (możesz dostosować według potrzeby)
+    y_position = PAGE_HEIGHT - 80 
 
     # Dodanie linii oddzielającej tytuł od obrazu
     c.setStrokeColor(colors.black)  # Ustawienie koloru linii (czarny)
-    c.setLineWidth(1)  # Grubość linii
+    c.setLineWidth(2)  # Grubość linii
     c.line(MARGIN, y_position, PAGE_WIDTH - MARGIN, y_position)  # Narysowanie linii poziomej
 
     # Zwróć zmodyfikowaną pozycję Y
-    return y_position - 10 
+    return y_position 
 
 def add_image_and_description(c, file, response, y_position):
     """
@@ -81,54 +88,91 @@ def add_image_and_description(c, file, response, y_position):
         c.showPage()
         y_position = PAGE_HEIGHT - MARGIN
 
-    y_position -= 75
+    y_position -= 50
 
     c.drawImage(tmpfile_path, 100, y_position - img_height, width=img_width, height=img_height)
-    y_position -= img_height + 10
+    y_position -= img_height + 45
+
+  
 
     # Pobranie szczegółowych informacji o obrazie
     title = response.get("title", "Unknown Title")
     author = response.get("author", "Unknown Author")
     year = response.get("year", "Unknown Year")
-    description = response.get("description_of_historical_event_in_3_sentences", "Brak opisu")
+    description = response.get("description_of_historical_event_in_3_sentences", "No Description")
 
+    c.setFont("Helvetica-Bold", 12)
     text_lines = [
         f"Title: {title}",
         f"Author: {author}",
         f"Year: {year}",
         "Description:",
-    ] + simpleSplit(description, 'Helvetica', LINE_HEIGHT, PAGE_WIDTH - 2 * MARGIN)
-    
+    ]
+
+    # Rysowanie tytułów
     for line in text_lines:
         if y_position - LINE_HEIGHT < MARGIN:
             c.showPage()
             y_position = PAGE_HEIGHT - MARGIN
         c.drawString(MARGIN, y_position, line)
         y_position -= LINE_HEIGHT
-    
-    return y_position
 
-def add_recommendations(c, y_position):
-    """
-    Dodaje sekcję rekomendacji do PDF.
-    """
-    recommendations = [
-        {"title": "The Surrender of Breda", "author": "Diego Velázquez", "year": "1634"}
-    ]
+    # Dodanie pustej linii przed opisem, jeśli chcesz
+    y_position -= 10  # Może to być np. 10 punktów odstępu
+
+    # Ustawienie czcionki na zwykłą
+    c.setFont("Helvetica", 10)
+
+    # Dodanie reszty tekstu (opis)
+    text_lines_description = simpleSplit(description, 'Helvetica', LINE_HEIGHT, PAGE_WIDTH - 2 * MARGIN)
+
+    # Rysowanie reszty tekstu (opis)
+    for line in text_lines_description:
+        if y_position - LINE_HEIGHT < MARGIN:
+            c.showPage()
+            y_position = PAGE_HEIGHT - MARGIN
+        c.drawString(MARGIN, y_position, line)
+        y_position -= LINE_HEIGHT
     
+    return y_position 
+
+def add_recommendations(c, y_position, recommendations):
+    """
+    Adds a section with recommended paintings to the PDF.
+    """
+    # Ensure recommendations is a list
+    if not isinstance(recommendations, list):
+        st.error(f"Expected recommendations to be a list, but got {type(recommendations)}")
+        return y_position
+
+    if not recommendations:
+        return y_position  # Return y_position unchanged
+
     if y_position - 50 < MARGIN:
         c.showPage()
         y_position = PAGE_HEIGHT - MARGIN
-    
-    c.setFont("Helvetica-Bold", 16)
+
+    c.setFont("Helvetica-Bold", 12)
     c.drawString(MARGIN, y_position, "Recommended Paintings:")
     y_position -= 20
-    
+
     c.setFont("Helvetica", 12)
+
     for rec in recommendations:
-        rec_text = f"Title: {rec['title']}, Author: {rec['author']}, Year: {rec['year']}"
-        c.drawString(MARGIN, y_position, rec_text)
-        y_position -= LINE_HEIGHT
+        text_lines = [
+            f"Title: {rec.get('title', 'Unknown')}",
+            f"Author: {rec.get('author', 'Unknown')}",
+            f"Year: {rec.get('year', 'Unknown')}",
+        ]
+        for line in text_lines:
+            c.drawString(MARGIN, y_position, line)
+            y_position -= LINE_HEIGHT
+        
+        y_position -= 10  # Extra spacing between recommendations
+
+    return y_position
+
+
 def generate_pdf_button(uploaded_files):
     if st.button("Generate PDF with Paintings and Recommendations"):
         
@@ -137,8 +181,11 @@ def generate_pdf_button(uploaded_files):
             return
 
         painting_responses = st.session_state["painting_responses"]
-        
-        pdf_path = create_pdf(uploaded_files, painting_responses)
+
+        if "recommendations" not in st.session_state:
+            st.session_state["recommendations"] = {} 
+
+        pdf_path = create_pdf(uploaded_files, painting_responses, st.session_state["recommendations"])
 
         
         with open(pdf_path, "rb") as f:
@@ -175,6 +222,7 @@ def generate_data_for_text(painting_details, response_model=New_paint):
             Zaproponuj sympatykowi sztuki 2 obrazy o podobnej tematyce co {painting_details}.
             Zwroc go w formacie Tytul, Autor oraz URL pod ktorym mozna ten obraz znalezc.
             Zwroc rowniez informacje o zuzytych tokenach do tego zapytania tak by mozna bylo to przeliczyc na koszt w dolarach.
+            ODPOWIEDZ W JEZYKU ANGIELSKIM
             """,
         },
             ],
@@ -190,7 +238,7 @@ def generate_data_for_text(painting_details, response_model=New_paint):
     
 
 
-    return response
+    return [response]
     
 def generate_data_for_image(uploaded_files, response_model=PaintingInfo):
 
@@ -207,7 +255,12 @@ def generate_data_for_image(uploaded_files, response_model=PaintingInfo):
                     "content": [
                         {
                             "type": "text",
-                            "text": "Pobierz szczegóły na temat obrazu.Zwroc rowniez informacje o zuzytych tokenach do tego zapytania tak by mozna bylo to przeliczyc na koszt w dolarach.",
+                            "text": """Pobierz szczegóły na temat obrazu.
+                            Zwroc rowniez informacje o zuzytych tokenach do tego zapytania tak 
+                            by mozna bylo to przeliczyc na koszt w dolarach.
+                            ODPOWIEDZ W JEZYKU ANGIELSKIM
+                            
+                            """,
                         },
                         {
                             "type": "image_url",
@@ -325,13 +378,38 @@ if uploaded_files:
                     submit_recommendation = st.form_submit_button(label="Generate Recommendation", type="tertiary")
 
                     if submit_recommendation:
-                        st.session_state[rec_key] = generate_data_for_text(response)
+                        recommendations = generate_data_for_text(response)
+                        print(f"Generated recommendations: {recommendations}") 
+
+                        if "recommendations" not in st.session_state:
+                            st.session_state["recommendations"] = {}
+
+                        if "responses" not in st.session_state:
+                            st.session_state["responses"] = {}
+
+                        painting_title = response.get("title", file.name)
+                        print(f"Storing recommendations for painting_title: {painting_title}, type: {type(painting_title)}") 
+
+
+                        if isinstance(painting_title, str):
+                            st.session_state["recommendations"][painting_title] = recommendations
+                        else:
+                            st.error("Painting title is not a string. Cannot store recommendations.")
+                        st.session_state["responses"][painting_title] = response
+
                         st.rerun()
 
-            # Wyświetlenie rekomendacji, jeśli została wygenerowana
-                if st.session_state[rec_key]:
-                    
-                    rec = st.session_state[rec_key]
-                    st.markdown(f"**Title:** {rec['title']}")
-                    st.markdown(f"**Author:** {rec['author']}")
-                    st.markdown(f"**Year:** {rec['year']}")
+           
+                if "recommendations" in st.session_state and st.session_state["recommendations"]:
+                    current_painting_title = response.get("title", file.name)
+
+                    if current_painting_title in st.session_state["recommendations"]:
+                        recommendations = st.session_state["recommendations"][current_painting_title]
+
+
+                        for idx, recommendation in enumerate(recommendations, start=1):
+                
+                            st.markdown(f"**Title:** {recommendation.get('title', 'N/A')}")
+                            st.markdown(f"**Author:** {recommendation.get('author', 'N/A')}")
+                            st.markdown(f"**Year:** {recommendation.get('year', 'N/A')}")
+                            
