@@ -5,144 +5,133 @@ import base64
 import instructor
 from io import BytesIO
 import tempfile
-
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from reportlab.lib import colors
 from reportlab.lib.utils import simpleSplit
-
-PRICE_FOR_IMAGE = 0.0000075
-PRICE_FOR_TEXT = 0.00001 
-
-PAGE_WIDTH, PAGE_HEIGHT = letter
-MARGIN = 50  # Margines strony
-LINE_HEIGHT = 14 
-
 from models import PaintingInfo, New_paint
 
-st.set_page_config(page_title="Painting reader", layout="centered")
+# Constants
+PRICE_FOR_IMAGE = 0.0000075
+PRICE_FOR_TEXT = 0.00001
+PAGE_WIDTH, PAGE_HEIGHT = letter
+MARGIN = 50  # Page margin in points
+LINE_HEIGHT = 14  # Line height in points
 
+# Initialize session state for token usage
+if "total_tokens_used" not in st.session_state:
+    st.session_state["total_tokens_used"] = 0
+
+# Set up the page configuration
+st.set_page_config(page_title="Painting Reader", layout="centered")
+
+# Load environment variables
 config = dotenv_values(".env")
 
-st.session_state["total_tokens_used"] = st.session_state.get("total_tokens_used", 0)
+def setup_api_key():
+    """Handles OpenAI API key setup using dotenv_values."""
+    if not st.session_state.get("openai_key"):
+        api_key = config.get("API_KEY")  # Fetch API key from .env file
+        if api_key:
+            st.session_state["openai_key"] = api_key
+        else:
+            st.info("Provide Your OpenAI API key to continue.")
+            api_key_input = st.text_input("OpenAI API Key:")
+            if api_key_input:
+                st.session_state["openai_key"] = api_key_input
+                st.rerun()  # Refresh the app to apply the key
 
+    if not st.session_state.get("openai_key"):
+        st.error("OpenAI API key is required to proceed.")
+        st.stop()
 
-def create_pdf(uploaded_files, painting_responses, recommendations_dict):
-    """
-    Tworzy PDF z obrazami, opisami i rekomendacjami.
-    """
+# Handle API key setup
+setup_api_key()
+
+def create_pdf(uploaded_files: list, painting_responses: list, recommendations_dict: dict) -> str:
+    """Generates a PDF report with images, descriptions, and recommendations."""
     pdf_path = "generated_painting_report.pdf"
     c = canvas.Canvas(pdf_path, pagesize=letter)
     
-    add_title_to_pdf(c)
-    
-    y_position = 730  # Początkowa pozycja na stronie (od góry)
+    y_position = add_title_to_pdf(c)
     
     for file, response in zip(uploaded_files, painting_responses):
         y_position = add_image_and_description(c, file, response, y_position)
-
         painting_title = response.get("title", file.name)
-        print(f"create_pdf: painting_title = {painting_title}, type = {type(painting_title)}")
-
+        
         if painting_title in recommendations_dict:
-            print(f"create_pdf: recommendations_dict[{painting_title}] = {recommendations_dict[painting_title]}")
             y_position = add_recommendations(c, y_position, recommendations_dict[painting_title])
-
-        if y_position < 100:
-            c.showPage()  
-            y_position = 730  
+        
+        if y_position < MARGIN + 100:  # Add a new page if space is running out
+            c.showPage()
+            y_position = PAGE_HEIGHT - MARGIN
     
-    
-    c.save()  
+    c.save()
     return pdf_path
 
-def add_title_to_pdf(c):
-
+def add_title_to_pdf(c: canvas.Canvas) -> int:
+    """Adds a title to the PDF and returns the updated Y position."""
     c.setFont("Courier-Bold", 28)
     c.drawCentredString(PAGE_WIDTH / 2, PAGE_HEIGHT - 50, "Painting Report - ArtExplorer")
     
-    # Zwiększenie odstępu po tytule
-    y_position = PAGE_HEIGHT - 80 
+    y_position = PAGE_HEIGHT - 80  # Adjust Y position after title
+    
+    # Add a separator line
+    c.setStrokeColor(colors.black)
+    c.setLineWidth(2)
+    c.line(MARGIN, y_position, PAGE_WIDTH - MARGIN, y_position)
+    
+    return y_position
 
-    # Dodanie linii oddzielającej tytuł od obrazu
-    c.setStrokeColor(colors.black)  # Ustawienie koloru linii (czarny)
-    c.setLineWidth(2)  # Grubość linii
-    c.line(MARGIN, y_position, PAGE_WIDTH - MARGIN, y_position)  # Narysowanie linii poziomej
-
-    # Zwróć zmodyfikowaną pozycję Y
-    return y_position 
-
-def add_image_and_description(c, file, response, y_position):
-    """
-    Dodaje obraz oraz jego opis do PDF.
-    """
-    # Zapisz obraz jako plik tymczasowy
+def add_image_and_description(c: canvas.Canvas, file: BytesIO, response: dict, y_position: int) -> int:
+    """Adds an image and its description to the PDF."""
     with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpfile:
         tmpfile.write(file.read())
         tmpfile_path = tmpfile.name
 
-    img_width = 400  # Powiększona szerokość obrazu
-    img_height = 300  # Powiększona wysokość obrazu
+    img_width, img_height = 400, 300  # Image dimensions
 
     if y_position - img_height < MARGIN:
         c.showPage()
         y_position = PAGE_HEIGHT - MARGIN
 
-    y_position -= 50
-
+    y_position -= 50  # Adjust Y position for image
     c.drawImage(tmpfile_path, 100, y_position - img_height, width=img_width, height=img_height)
-    y_position -= img_height + 45
+    y_position -= img_height + 45  # Adjust Y position after image
 
-  
-
-    # Pobranie szczegółowych informacji o obrazie
+    # Add painting details
     title = response.get("title", "Unknown Title")
     author = response.get("author", "Unknown Author")
     year = response.get("year", "Unknown Year")
     description = response.get("description_of_historical_event_in_3_sentences", "No Description")
 
     c.setFont("Helvetica-Bold", 12)
-    text_lines = [
-        f"Title: {title}",
-        f"Author: {author}",
-        f"Year: {year}",
-        "Description:",
-    ]
-
-    # Rysowanie tytułów
-    for line in text_lines:
+    details = [f"Title: {title}", f"Author: {author}", f"Year: {year}", "Description:"]
+    for line in details:
         if y_position - LINE_HEIGHT < MARGIN:
             c.showPage()
             y_position = PAGE_HEIGHT - MARGIN
         c.drawString(MARGIN, y_position, line)
         y_position -= LINE_HEIGHT
 
-    # Dodanie pustej linii przed opisem, jeśli chcesz
-    y_position -= 10  # Może to być np. 10 punktów odstępu
+    y_position -= LINE_HEIGHT
 
-    # Ustawienie czcionki na zwykłą
+    # Add description text
     c.setFont("Helvetica", 10)
-
-    # Dodanie reszty tekstu (opis)
-    text_lines_description = simpleSplit(description, 'Helvetica', LINE_HEIGHT, PAGE_WIDTH - 2 * MARGIN)
-
-    # Rysowanie reszty tekstu (opis)
-    for line in text_lines_description:
+    description_lines = simpleSplit(description, 'Helvetica', LINE_HEIGHT, PAGE_WIDTH - 2 * MARGIN)
+    for line in description_lines:
         if y_position - LINE_HEIGHT < MARGIN:
             c.showPage()
             y_position = PAGE_HEIGHT - MARGIN
         c.drawString(MARGIN, y_position, line)
         y_position -= LINE_HEIGHT
 
-    y_position -= 5
-    
-    return y_position 
+    y_position -= LINE_HEIGHT
 
-def add_recommendations(c, y_position, recommendations):
-    """
-    Adds a section with recommended paintings to the PDF.
-    """
-    # Ensure recommendations is a list
+    return y_position
+
+def add_recommendations(c: canvas.Canvas, y_position: int, recommendations: list) -> int:
+    """Adds a section with recommended paintings to the PDF."""
     if not isinstance(recommendations, list):
         st.error(f"Expected recommendations to be a list, but got {type(recommendations)}")
         return y_position
@@ -174,10 +163,9 @@ def add_recommendations(c, y_position, recommendations):
 
     return y_position
 
-
-def generate_pdf_button(uploaded_files):
+def generate_pdf_button(uploaded_files: list):
+    """Generates and provides a download button for the PDF."""
     if st.button("Generate PDF with Paintings and Recommendations"):
-        
         if "painting_responses" not in st.session_state:
             st.error("Painting responses not available yet. Please generate painting details first.")
             return
@@ -189,7 +177,6 @@ def generate_pdf_button(uploaded_files):
 
         pdf_path = create_pdf(uploaded_files, painting_responses, st.session_state["recommendations"])
 
-        
         with open(pdf_path, "rb") as f:
             pdf_data = f.read()
             st.download_button(
@@ -199,141 +186,104 @@ def generate_pdf_button(uploaded_files):
                 mime="application/pdf"
             )
 
-def prepare_image_for_openai(image_file):
+def prepare_image_for_openai(image_file: BytesIO) -> str:
+    """Prepares an image for OpenAI API by encoding it in base64."""
     image_data = base64.b64encode(image_file.read()).decode('utf-8')
     return f"data:image/png;base64,{image_data}"
 
 def return_openai_instructor():
-    openai_client = OpenAI(api_key=config["API_KEY"])
+    """Returns an OpenAI client with instructor."""
+    openai_client = OpenAI(api_key=st.session_state["openai_key"])
     instructor_openai_client = instructor.from_openai(openai_client)
-
     return instructor_openai_client
 
-def generate_data_for_text(painting_details, response_model=New_paint):
+def calculate_token_cost(tokens_used: int, price_per_token: float) -> float:
+    """Calculates the cost based on tokens used and price per token."""
+    return tokens_used * price_per_token
 
-    print("WYKONUJE CALL OPENAI DLA TEXT")
-    res = return_openai_instructor().chat.completions.create(
-    model="gpt-4o",
-    response_model=response_model,
-    temperature=1,
-    # n=2 #TODO bedzie to potrzebne do liczenia zuzycia
-    messages=[
-        {
-            "role": "user",
-            "content": f"""
-            Zaproponuj sympatykowi sztuki 2 obrazy o podobnej tematyce co {painting_details}.
-            Zwroc go w formacie Tytul, Autor oraz URL pod ktorym mozna ten obraz znalezc.
-            Zwroc rowniez informacje o zuzytych tokenach do tego zapytania tak by mozna bylo to przeliczyc na koszt w dolarach.
-            ODPOWIEDZ W JEZYKU ANGIELSKIM
-            """,
-        },
-            ],
-    
-    )
-
-    response = res.model_dump()
-    tokens_used = response['total_tokens_usage_cost_text_to_text']
-    tokens_price = float(tokens_used) * PRICE_FOR_TEXT
-    print(f"{tokens_price} $")
-
-    st.session_state["total_tokens_used"] += tokens_price
-    
-
-
-    return [response]
-    
-def generate_data_for_image(uploaded_files, response_model=PaintingInfo):
-
-    print("WYKONUJE CALL OPENAI DLA OBRAZ")
-    responses = []
-    for file in uploaded_files:
-        
+def generate_data_for_text(painting_details: str, response_model=New_paint) -> list:
+    """Generates data for text-based OpenAI requests."""
+    try:
         res = return_openai_instructor().chat.completions.create(
             model="gpt-4o",
             response_model=response_model,
+            temperature=1,
             messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": """Pobierz szczegóły na temat obrazu.
-                            Zwroc rowniez informacje o zuzytych tokenach do tego zapytania tak 
-                            by mozna bylo to przeliczyc na koszt w dolarach.
-                            ODPOWIEDZ W JEZYKU ANGIELSKIM
-                            
-                            """,
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": prepare_image_for_openai(file),
-                                "detail": "high"
-                            },
-                        },
-                    ],
-                },
+                {"role": "user", "content": f"Reccomend a new painting with similar style as: {painting_details} reply in english."}
             ],
         )
-
         response = res.model_dump()
-        tokens_used = response['total_tokens_usage_cost_image_to_text'] 
-        tokens_price = float(tokens_used) * PRICE_FOR_IMAGE
-        print(f"{tokens_price} $")
-
+        tokens_used = response['total_tokens_usage_cost_text_to_text']
+        tokens_price = calculate_token_cost(tokens_used, PRICE_FOR_TEXT)
         st.session_state["total_tokens_used"] += tokens_price
+        return [response]
+    except Exception as e:
+        st.error(f"Error generating data for text: {e}")
+        return []
 
-
-
-        responses.append(response)
-
+def generate_data_for_image(uploaded_files: list, response_model=PaintingInfo) -> list:
+    """Generates data for image-based OpenAI requests."""
+    responses = []
+    for file in uploaded_files:
+        try:
+            res = return_openai_instructor().chat.completions.create(
+                model="gpt-4o",
+                response_model=response_model,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "Collect details of the painting. Return information about used tokens. Reply in english",
+                            },
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": prepare_image_for_openai(file),
+                                    "detail": "high"
+                                },
+                            },
+                        ],
+                    },
+                ],
+            )
+            response = res.model_dump()
+            tokens_used = response['total_tokens_usage_cost_image_to_text']
+            tokens_price = calculate_token_cost(tokens_used, PRICE_FOR_IMAGE)
+            st.session_state["total_tokens_used"] += tokens_price
+            responses.append(response)
+        except Exception as e:
+            st.error(f"Error generating data for image: {e}")
     return responses
 
-def update_token_usage_display():
-    st.session_state["total_tokens_used_display"] = st.session_state["total_tokens_used"]
+def render_sidebar(uploaded_files: list):
+    """Renders the sidebar with file uploader and cost display."""
+    with st.sidebar:
+        st.header("Upload Your Images :arrow_lower_left:")
+        uploaded_files = st.file_uploader(
+            label=" ",
+            accept_multiple_files=True,
+            type=["png", "jpg", "jpeg", "gif", "bmp"]
+        )
 
+        if uploaded_files:
+            st.metric("Total Cost:", f"{round(st.session_state['total_tokens_used'], 4)}$")
+            st.header("Download Your PDF")
+            generate_pdf_button(uploaded_files)
 
+    return uploaded_files
 
-if not st.session_state.get("openai_key"):
-    if "API_KEY" in config:
-        st.session_state["openai_key"] = config["API_KEY"]
+def render_main_ui():
+    """Renders the main UI with title and description."""
+    st.title("ArtExplorer :male-artist:")
+    st.write(
+        "Took a picture but forgot everything? Just upload your chosen paintings, "
+        "and the AI will do the rest :handshake:"
+    )
 
-    
-    else:
-        st.info("Provide Your OPENAI API key to continue")
-        st.session_state["openai_key"] = st.text_input("Klucz OPEN_AI: ")
-        if st.session_state["openai_key"]:
-            st.rerun()
-
-
-if not st.session_state.get("openai_key"):
-    st.stop()
-
-st.title("ArtExplorer :male-artist:")
-st.write("Took a picture but forgot everything? Just upload your chosen paintings, and the AI will do the rest :handshake: ")
-
-with st.sidebar:
-    st.header("Upload Your images :arrow_lower_left:")
-    uploaded_files = st.file_uploader(label=" ",
-                                      accept_multiple_files=True,
-                                      type=["png", "jpg", "jpeg", "gif", "bmp"])
-
-    if uploaded_files:
-        
-        st.metric(f"Total cost:",  f"{round(st.session_state['total_tokens_used'], 4)}$")
-        # st.header(f"Total cost: {round(st.session_state['total_tokens_used'], 4)}$")
-
-        st.header("Download Your PDF")
-        generate_pdf_button(uploaded_files)
-
-
-
-            
-
-
-
-if uploaded_files:
-
+def handle_file_tabs(uploaded_files: list):
+    """Handles the creation of tabs and file processing."""
     tab_names = [file.name for file in uploaded_files]
     tabs = st.tabs(tab_names)
 
@@ -345,74 +295,82 @@ if uploaded_files:
                 st.session_state[tab_key] = None
 
             with st.form(key=f"form_{file.name}"):
-                submit_button = st.form_submit_button(label=":arrow_right_hook: Click Here to generate painting description", type="tertiary")
+                submit_button = st.form_submit_button(
+                    label=":arrow_right_hook: Click Here to generate painting description",
+                    type="tertiary"
+                )
                 st.image(file, caption=file.name, use_container_width=True)
+
                 if submit_button:
                     with st.spinner("Generating painting details..."):
                         try:
-                            response = generate_data_for_image([file])[0]  
+                            response = generate_data_for_image([file])[0]
                             st.session_state[tab_key] = response
 
                             if "painting_responses" not in st.session_state:
                                 st.session_state["painting_responses"] = []
 
                             st.session_state["painting_responses"].append(response)
-
                         except Exception as e:
                             st.error(f"An error occurred: {e}")
 
                     st.rerun()
-    
+
             if st.session_state[tab_key]:
-                response = st.session_state[tab_key]
-                
-                st.markdown(f"**Title:** {response['title']}")
-                st.markdown(f"**Author:** {response['author']}")
-                st.markdown(f"**Year:** {response['year']}")
-                st.markdown(f"**Description:**")
-                st.markdown(f"> {response['description_of_historical_event_in_3_sentences']}")
+                display_painting_details(st.session_state[tab_key], file)
 
-                rec_key = f"rec_{file.name}"
-                if rec_key not in st.session_state:
-                    st.session_state[rec_key] = None
+def display_painting_details(response: dict, file: BytesIO):
+    """Displays painting details and handles recommendations."""
+    st.markdown(f"**Title:** {response['title']}")
+    st.markdown(f"**Author:** {response['author']}")
+    st.markdown(f"**Year:** {response['year']}")
+    st.markdown(f"**Description:**")
+    st.markdown(f"> {response['description_of_historical_event_in_3_sentences']}")
 
-            # Formularz do generowania rekomendacji
-                with st.form(key=f"form_rec_{file.name}"):
-                    submit_recommendation = st.form_submit_button(label=":arrow_right_hook: Generate Recommendation", type="tertiary")
+    rec_key = f"rec_{file.name}"
+    if rec_key not in st.session_state:
+        st.session_state[rec_key] = None
 
-                    if submit_recommendation:
-                        recommendations = generate_data_for_text(response)
-                        print(f"Generated recommendations: {recommendations}") 
+    with st.form(key=f"form_rec_{file.name}"):
+        submit_recommendation = st.form_submit_button(
+            label=":arrow_right_hook: Generate Recommendation",
+            type="tertiary"
+        )
 
+        if submit_recommendation:
+            with st.spinner("Generating recommendations..."):
+                try:
+                    recommendations = generate_data_for_text(response)
+                    painting_title = response.get("title", file.name)
+
+                    if isinstance(painting_title, str):
                         if "recommendations" not in st.session_state:
                             st.session_state["recommendations"] = {}
+                        st.session_state["recommendations"][painting_title] = recommendations
+                    else:
+                        st.error("Painting title is not a string. Cannot store recommendations.")
+                except Exception as e:
+                    st.error(f"Error generating recommendations: {e}")
 
-                        if "responses" not in st.session_state:
-                            st.session_state["responses"] = {}
+            st.rerun()
 
-                        painting_title = response.get("title", file.name)
-                        print(f"Storing recommendations for painting_title: {painting_title}, type: {type(painting_title)}") 
+    if "recommendations" in st.session_state and st.session_state["recommendations"]:
+        current_painting_title = response.get("title", file.name)
+        if current_painting_title in st.session_state["recommendations"]:
+            recommendations = st.session_state["recommendations"][current_painting_title]
+            for idx, recommendation in enumerate(recommendations, start=1):
+                st.markdown(f"**Title:** {recommendation.get('title', 'N/A')}")
+                st.markdown(f"**Author:** {recommendation.get('author', 'N/A')}")
+                st.markdown(f"**Year:** {recommendation.get('year', 'N/A')}")
 
+# Render the UI
+uploaded_files = render_sidebar(None)
+render_main_ui()
 
-                        if isinstance(painting_title, str):
-                            st.session_state["recommendations"][painting_title] = recommendations
-                        else:
-                            st.error("Painting title is not a string. Cannot store recommendations.")
-                        st.session_state["responses"][painting_title] = response
-
-                        st.rerun()
-
-           
-                if "recommendations" in st.session_state and st.session_state["recommendations"]:
-                    current_painting_title = response.get("title", file.name)
-
-                    if current_painting_title in st.session_state["recommendations"]:
-                        recommendations = st.session_state["recommendations"][current_painting_title]
+# Render tabs and handle file processing
+if uploaded_files:
+    handle_file_tabs(uploaded_files)
 
 
-                        for idx, recommendation in enumerate(recommendations, start=1):
-                
-                            st.markdown(f"**Title:** {recommendation.get('title', 'N/A')}")
-                            st.markdown(f"**Author:** {recommendation.get('author', 'N/A')}")
-                            st.markdown(f"**Year:** {recommendation.get('year', 'N/A')}")
-                            
+
+
