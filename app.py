@@ -133,6 +133,8 @@ def add_image_and_description(c, file, response, y_position):
             y_position = PAGE_HEIGHT - MARGIN
         c.drawString(MARGIN, y_position, line)
         y_position -= LINE_HEIGHT
+
+    y_position -= 5
     
     return y_position 
 
@@ -153,7 +155,7 @@ def add_recommendations(c, y_position, recommendations):
         y_position = PAGE_HEIGHT - MARGIN
 
     c.setFont("Helvetica-Bold", 12)
-    c.drawString(MARGIN, y_position, "Recommended Paintings:")
+    c.drawString(MARGIN, y_position, "Recommended similar painting:")
     y_position -= 20
 
     c.setFont("Helvetica", 12)
@@ -308,6 +310,7 @@ if not st.session_state.get("openai_key"):
     st.stop()
 
 st.title("ArtExplorer :male-artist:")
+st.write("Took a picture but forgot everything? Just upload your chosen paintings, and the AI will do the rest :handshake: ")
 
 with st.sidebar:
     st.header("Upload Your images :arrow_lower_left:")
@@ -342,7 +345,7 @@ if uploaded_files:
                 st.session_state[tab_key] = None
 
             with st.form(key=f"form_{file.name}"):
-                submit_button = st.form_submit_button(label="Click Here to generate painting description", type="tertiary")
+                submit_button = st.form_submit_button(label=":arrow_right_hook: Click Here to generate painting description", type="tertiary")
                 st.image(file, caption=file.name, use_container_width=True)
                 if submit_button:
                     with st.spinner("Generating painting details..."):
@@ -375,7 +378,7 @@ if uploaded_files:
 
             # Formularz do generowania rekomendacji
                 with st.form(key=f"form_rec_{file.name}"):
-                    submit_recommendation = st.form_submit_button(label="Generate Recommendation", type="tertiary")
+                    submit_recommendation = st.form_submit_button(label=":arrow_right_hook: Generate Recommendation", type="tertiary")
 
                     if submit_recommendation:
                         recommendations = generate_data_for_text(response)
