@@ -235,7 +235,7 @@ def generate_data_for_image(uploaded_files: list, response_model=PaintingInfo) -
                         "content": [
                             {
                                 "type": "text",
-                                "text": "Collect details of the painting. Return information about used tokens. Reply in english",
+                                "text": "Collect details of the painting. Return information about used tokens. Reply in english and do not use polish letters",
                             },
                             {
                                 "type": "image_url",
@@ -296,7 +296,7 @@ def handle_file_tabs(uploaded_files: list):
 
             with st.form(key=f"form_{file.name}"):
                 submit_button = st.form_submit_button(
-                    label=":arrow_right_hook: Click Here to generate painting description",
+                    label=":arrow_right_hook: 1/2 Click Here to generate painting description",
                     type="tertiary"
                 )
                 st.image(file, caption=file.name, use_container_width=True)
@@ -333,9 +333,10 @@ def display_painting_details(response: dict, file: BytesIO):
 
     with st.form(key=f"form_rec_{file.name}"):
         submit_recommendation = st.form_submit_button(
-            label=":arrow_right_hook: Generate Recommendation",
+            label=":arrow_right_hook: 2/2 Looking for similar painting to see? Just click 🖍️",
             type="tertiary"
         )
+        
 
         if submit_recommendation:
             with st.spinner("Generating recommendations..."):
