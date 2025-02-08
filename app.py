@@ -11,12 +11,16 @@ from reportlab.lib import colors
 from reportlab.lib.utils import simpleSplit
 from models import PaintingInfo, New_paint
 
+import tinify
+
 # Constants
 PRICE_FOR_IMAGE = 0.0000075
 PRICE_FOR_TEXT = 0.00001
 PAGE_WIDTH, PAGE_HEIGHT = letter
 MARGIN = 50  # Page margin in points
 LINE_HEIGHT = 14  # Line height in points
+
+
 
 # Initialize session state for token usage
 if "total_tokens_used" not in st.session_state:
@@ -27,6 +31,10 @@ st.set_page_config(page_title="Painting Reader", layout="centered")
 
 # Load environment variables
 config = dotenv_values(".env")
+
+#TINFY api key
+tinify_key = config.get("TINIFY")
+
 
 def setup_api_key():
     """Handles OpenAI API key setup using dotenv_values."""
@@ -264,7 +272,7 @@ def render_sidebar(uploaded_files: list):
         uploaded_files = st.file_uploader(
             label=" ",
             accept_multiple_files=True,
-            type=["png", "jpg", "jpeg", "gif", "bmp"]
+            type=["png", "jpg", "jpeg"]
         )
 
         if uploaded_files:
