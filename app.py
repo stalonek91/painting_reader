@@ -36,7 +36,7 @@ def setup_api_key():
             st.session_state["openai_key"] = api_key
         else:
             st.info("Provide Your OpenAI API key to continue.")
-            api_key_input = st.text_input("OpenAI API Key:")
+            api_key_input = st.text_input("OpenAI API Key:", type="password")
             if api_key_input:
                 st.session_state["openai_key"] = api_key_input
                 st.rerun()  # Refresh the app to apply the key
