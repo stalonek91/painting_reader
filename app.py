@@ -3,6 +3,7 @@ from openai import OpenAI
 from dotenv import dotenv_values
 import base64
 import instructor
+import os
 from io import BytesIO
 import tempfile
 from reportlab.lib.pagesizes import letter
@@ -33,7 +34,7 @@ st.set_page_config(page_title="Painting Reader", layout="centered")
 config = dotenv_values(".env")
 
 #TINFY api key
-tinify_key = config.get("TINIFY")
+tinify.key = config.get("TINIFY")
 
 
 def setup_api_key():
@@ -58,14 +59,15 @@ setup_api_key()
 
 def create_pdf(uploaded_files: list, painting_responses: list, recommendations_dict: dict) -> str:
     """Generates a PDF report with images, descriptions, and recommendations."""
+
     pdf_path = "generated_painting_report.pdf"
     c = canvas.Canvas(pdf_path, pagesize=letter)
     
     y_position = add_title_to_pdf(c)
     
-    for file, response in zip(uploaded_files, painting_responses):
-        y_position = add_image_and_description(c, file, response, y_position)
-        painting_title = response.get("title", file.name)
+    for file_path, response in zip(uploaded_files, painting_responses):
+        y_position = add_image_and_description(c, file_path, response, y_position)
+        painting_title = response.get("title", os.path.basename(file_path))
         
         if painting_title in recommendations_dict:
             y_position = add_recommendations(c, y_position, recommendations_dict[painting_title])
@@ -75,10 +77,16 @@ def create_pdf(uploaded_files: list, painting_responses: list, recommendations_d
             y_position = PAGE_HEIGHT - MARGIN
     
     c.save()
+
+    # Cleanup temporary files
+    for file_path in uploaded_files:
+        os.remove(file_path)
+
     return pdf_path
 
 def add_title_to_pdf(c: canvas.Canvas) -> int:
     """Adds a title to the PDF and returns the updated Y position."""
+
     c.setFont("Courier-Bold", 28)
     c.drawCentredString(PAGE_WIDTH / 2, PAGE_HEIGHT - 50, "Painting Report - ArtExplorer")
     
@@ -91,11 +99,8 @@ def add_title_to_pdf(c: canvas.Canvas) -> int:
     
     return y_position
 
-def add_image_and_description(c: canvas.Canvas, file: BytesIO, response: dict, y_position: int) -> int:
+def add_image_and_description(c: canvas.Canvas, file_path: str, response: dict, y_position: int) -> int:
     """Adds an image and its description to the PDF."""
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpfile:
-        tmpfile.write(file.read())
-        tmpfile_path = tmpfile.name
 
     img_width, img_height = 400, 300  # Image dimensions
 
@@ -104,7 +109,7 @@ def add_image_and_description(c: canvas.Canvas, file: BytesIO, response: dict, y
         y_position = PAGE_HEIGHT - MARGIN
 
     y_position -= 50  # Adjust Y position for image
-    c.drawImage(tmpfile_path, 100, y_position - img_height, width=img_width, height=img_height)
+    c.drawImage(file_path, 100, y_position - img_height, width=img_width, height=img_height)
     y_position -= img_height + 45  # Adjust Y position after image
 
     # Add painting details
@@ -194,6 +199,24 @@ def generate_pdf_button(uploaded_files: list):
                 mime="application/pdf"
             )
 
+
+#Functions for image_compression
+
+def compress_image(uploaded_file):
+    """ Compress an uploaded image using Tinify and return its temp file path"""
+    file_bytes = BytesIO(uploaded_file.read())
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as temp_input:
+        temp_input.write(file_bytes.getvalue())
+        temp_input_path = temp_input.name
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as temp_output:
+        tinify.from_file(temp_input_path).to_file(temp_output.name)
+        temp_output_path = temp_output.name
+
+    return temp_output_path
+
+
 def prepare_image_for_openai(image_file: BytesIO) -> str:
     """Prepares an image for OpenAI API by encoding it in base64."""
     image_data = base64.b64encode(image_file.read()).decode('utf-8')
@@ -276,9 +299,13 @@ def render_sidebar(uploaded_files: list):
         )
 
         if uploaded_files:
+
+            #compress all uploaded images
+            compressed_files = [compress_image(file) for file in uploaded_files]
+
             st.metric("Total Cost:", f"{round(st.session_state['total_tokens_used'], 4)}$")
             st.header("Download Your PDF")
-            generate_pdf_button(uploaded_files)
+            generate_pdf_button(compressed_files)
 
     return uploaded_files
 
