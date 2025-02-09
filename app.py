@@ -34,7 +34,7 @@ st.set_page_config(page_title="Painting Reader", layout="centered")
 config = dotenv_values(".env")
 
 #TINFY api key
-tinify.key = st.secret["TINIFY"]
+tinify.key = st.secrets["TINIFY"]
 
 
 def setup_api_key():
