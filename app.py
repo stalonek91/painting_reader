@@ -34,7 +34,9 @@ st.set_page_config(page_title="Painting Reader", layout="centered")
 config = dotenv_values(".env")
 
 #TINFY api key
-tinify.key = st.secrets["TINIFY"]
+# tinify.key = st.secrets["TINIFY"]
+tinify.key = config["TINIFY"]
+
 
 
 def setup_api_key():
@@ -309,6 +311,17 @@ def render_sidebar(uploaded_files: list):
 
     return uploaded_files
 
+
+
+def get_language_flags():
+    return {
+        "Polski 🇵🇱": "pl",
+        "English 🇬🇧": "en",
+        "Deutsch 🇩🇪": "de",
+        "Français 🇫🇷": "fr",
+        "Español 🇪🇸": "es"
+    }
+
 def render_main_ui():
     """Renders the main UI with title and description."""
     st.title("ArtExplorer :male-artist:")
@@ -330,11 +343,24 @@ def handle_file_tabs(uploaded_files: list):
                 st.session_state[tab_key] = None
 
             with st.form(key=f"form_{file.name}"):
-                submit_button = st.form_submit_button(
-                    label=":arrow_right_hook: 1/2 Click Here to generate painting description",
-                    type="tertiary"
-                )
+                col1, col2 = st.columns([1, 1])
+                
+                with col1:
+                    submit_button = st.form_submit_button(
+                        label=":arrow_right_hook: 1/2 Click Here to generate painting description",
+                        type="tertiary"
+                    )
+                
+                with col2:
+                    language_flags = get_language_flags()
+                    selected_language = st.selectbox(
+                        "Select output language:", list(language_flags.keys()),
+                        index=list(language_flags.keys()).index(st.session_state["selected_language"])
+                    )
+                    st.session_state["selected_language"] = selected_language  # Zapis do session_state
+                    print(f'Wybrany jezyk to: {st.session_state["selected_language"]}')
                 st.image(file, caption=file.name, use_container_width=True)
+
 
                 if submit_button:
                     with st.spinner("Generating painting details..."):
@@ -405,6 +431,9 @@ render_main_ui()
 
 # Render tabs and handle file processing
 if uploaded_files:
+
+    if "selected_language" not in st.session_state:
+        st.session_state["selected_language"] = "Polski 🇵🇱"
     handle_file_tabs(uploaded_files)
 
 
