@@ -234,7 +234,7 @@ def calculate_token_cost(tokens_used: int, price_per_token: float) -> float:
     """Calculates the cost based on tokens used and price per token."""
     return tokens_used * price_per_token
 
-def generate_data_for_text(painting_details: str, response_model=New_paint) -> list:
+def generate_data_for_text(painting_details: str, output_lang: str, response_model=New_paint) -> list:
     """Generates data for text-based OpenAI requests."""
     try:
         res = return_openai_instructor().chat.completions.create(
@@ -242,7 +242,7 @@ def generate_data_for_text(painting_details: str, response_model=New_paint) -> l
             response_model=response_model,
             temperature=1,
             messages=[
-                {"role": "user", "content": f"Reccomend a new painting with similar style as: {painting_details} reply in english."}
+                {"role": "user", "content": f"Reccomend a new painting with similar style as: {painting_details} reply ONLY in following language: {output_lang}."}
             ],
         )
         response = res.model_dump()
@@ -254,7 +254,7 @@ def generate_data_for_text(painting_details: str, response_model=New_paint) -> l
         st.error(f"Error generating data for text: {e}")
         return []
 
-def generate_data_for_image(uploaded_files: list, response_model=PaintingInfo) -> list:
+def generate_data_for_image(uploaded_files: list,output_lang: str, response_model=PaintingInfo) -> list:
     """Generates data for image-based OpenAI requests."""
     responses = []
     for file in uploaded_files:
@@ -268,7 +268,7 @@ def generate_data_for_image(uploaded_files: list, response_model=PaintingInfo) -
                         "content": [
                             {
                                 "type": "text",
-                                "text": "Collect details of the painting. Return information about used tokens. Reply in english and do not use polish letters",
+                                "text": f"Collect details of the painting. Return information about used tokens. Reply ONLY in following language: {output_lang}",
                             },
                             {
                                 "type": "image_url",
@@ -358,14 +358,14 @@ def handle_file_tabs(uploaded_files: list):
                         index=list(language_flags.keys()).index(st.session_state["selected_language"])
                     )
                     st.session_state["selected_language"] = selected_language  # Zapis do session_state
-                    print(f'Wybrany jezyk to: {st.session_state["selected_language"]}')
+                    print(f'Wybrany jezyk to: {st.session_state["selected_language"]} typu :{type(st.session_state["selected_language"])}')
                 st.image(file, caption=file.name, use_container_width=True)
 
 
                 if submit_button:
                     with st.spinner("Generating painting details..."):
                         try:
-                            response = generate_data_for_image([file])[0]
+                            response = generate_data_for_image([file],output_lang=st.session_state["selected_language"])[0]
                             st.session_state[tab_key] = response
 
                             if "painting_responses" not in st.session_state:
@@ -402,7 +402,7 @@ def display_painting_details(response: dict, file: BytesIO):
         if submit_recommendation:
             with st.spinner("Generating recommendations..."):
                 try:
-                    recommendations = generate_data_for_text(response)
+                    recommendations = generate_data_for_text(response, output_lang=st.session_state["selected_language"])
                     painting_title = response.get("title", file.name)
 
                     if isinstance(painting_title, str):
