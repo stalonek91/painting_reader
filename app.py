@@ -17,6 +17,7 @@ import tinify
 # Constants
 PRICE_FOR_IMAGE = 0.0000075
 PRICE_FOR_TEXT = 0.00001
+PRICE_FOR_CHAR_AUDIO = 0.015 #per 1000 Chars
 PAGE_WIDTH, PAGE_HEIGHT = letter
 MARGIN = 50  # Page margin in points
 LINE_HEIGHT = 14  # Line height in points
@@ -234,6 +235,30 @@ def calculate_token_cost(tokens_used: int, price_per_token: float) -> float:
     """Calculates the cost based on tokens used and price per token."""
     return tokens_used * price_per_token
 
+
+
+def generate_audio(response):
+    print (response)
+    # """Generuje plik audio na podstawie wygenerowanego opisu obrazu."""
+    text_to_speak = (f"{response['title']}. "
+                      f"{response['author']}. "
+                      f"{response['year']}. "
+                      f"{response['description_of_historical_event_in_3_sentences']}" )
+    
+    with st.spinner("Generating audio file..."):
+        response_audio = return_openai_instructor().audio.speech.create(
+            model="tts-1",  
+            voice="alloy",
+            input=text_to_speak
+        )
+
+        audio_path = "output.mp3"
+        with open(audio_path, "wb") as audio_file:
+            audio_file.write(response_audio.content)  # Poprawione zapisywanie pliku
+
+        st.success("Audio is ready!")
+        st.audio(audio_path)
+
 def generate_data_for_text(painting_details: str, output_lang: str, response_model=New_paint) -> list:
     """Generates data for text-based OpenAI requests."""
     try:
@@ -242,7 +267,8 @@ def generate_data_for_text(painting_details: str, output_lang: str, response_mod
             response_model=response_model,
             temperature=1,
             messages=[
-                {"role": "user", "content": f"Reccomend a new painting with similar style as: {painting_details} reply ONLY in following language: {output_lang}."}
+                {"role": "user", 
+                 "content": f"Reccomend a new painting with similar style as: {painting_details} reply ONLY in following language: {output_lang}. Do not do not use Polish characters"}
             ],
         )
         response = res.model_dump()
@@ -381,6 +407,20 @@ def handle_file_tabs(uploaded_files: list):
                 display_painting_details(st.session_state[tab_key], file)
 
 def display_painting_details(response: dict, file: BytesIO):
+
+    with st.form(key=f"form_rec_audio{file.name}"):
+        submit_audio = st.form_submit_button(
+            label=":arrow_right_hook: 2/3 Generate audiodescription :radio:",
+            type="tertiary"
+        )
+
+        if submit_audio:
+            generate_audio(response)
+            response_text =  str(response)
+            response_length = len(response_text)
+            tts_cost = (response_length / 1000) * PRICE_FOR_CHAR_AUDIO
+            st.session_state["total_tokens_used"] += tts_cost
+
     """Displays painting details and handles recommendations."""
     st.markdown(f"**Title:** {response['title']}")
     st.markdown(f"**Author:** {response['author']}")
@@ -394,7 +434,7 @@ def display_painting_details(response: dict, file: BytesIO):
 
     with st.form(key=f"form_rec_{file.name}"):
         submit_recommendation = st.form_submit_button(
-            label=":arrow_right_hook: 2/2 Looking for similar painting to see? Just click 🖍️",
+            label=":arrow_right_hook: 3/3 Looking for similar painting to see? Just click 🖍️",
             type="tertiary"
         )
         
