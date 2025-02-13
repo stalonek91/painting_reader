@@ -3,3 +3,4 @@ painting_reader/
 paintings/
 .DS_Store
 __pycache__/
+.vscode

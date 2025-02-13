@@ -252,12 +252,11 @@ def generate_audio(response):
             input=text_to_speak
         )
 
-        audio_path = "output.mp3"
-        with open(audio_path, "wb") as audio_file:
-            audio_file.write(response_audio.content)  # Poprawione zapisywanie pliku
+        audio_bytes = response_audio.content
+        st.session_state[f"audio_{response['title']}"] = audio_bytes
+        
+        return audio_bytes
 
-        st.success("Audio is ready!")
-        st.audio(audio_path)
 
 def generate_data_for_text(painting_details: str, output_lang: str, response_model=New_paint) -> list:
     """Generates data for text-based OpenAI requests."""
@@ -407,6 +406,10 @@ def handle_file_tabs(uploaded_files: list):
                 display_painting_details(st.session_state[tab_key], file)
 
 def display_painting_details(response: dict, file: BytesIO):
+    # Formularz do generowania audiodeskrypcji
+
+    audio_key = f"audio_{response['title']}"
+    audio_displayed_in_form = False
 
     with st.form(key=f"form_rec_audio{file.name}"):
         submit_audio = st.form_submit_button(
@@ -415,13 +418,28 @@ def display_painting_details(response: dict, file: BytesIO):
         )
 
         if submit_audio:
-            generate_audio(response)
-            response_text =  str(response)
+            if audio_key not in st.session_state:
+                audio_bytes = generate_audio(response)
+                st.session_state[audio_key] = audio_bytes
+
+            else:
+                audio_bytes = st.session_state[audio_key]
+                
+            st.audio(audio_bytes, format="audio/mp3")
+            audio_displayed_in_form = True
+
+            response_text = str(response)
             response_length = len(response_text)
             tts_cost = (response_length / 1000) * PRICE_FOR_CHAR_AUDIO
             st.session_state["total_tokens_used"] += tts_cost
 
-    """Displays painting details and handles recommendations."""
+        if audio_key in st.session_state and not audio_displayed_in_form:
+            st.audio(st.session_state[audio_key], format="audio/mp3")
+
+    
+
+
+    # """Displays painting details and handles recommendations."""
     st.markdown(f"**Title:** {response['title']}")
     st.markdown(f"**Author:** {response['author']}")
     st.markdown(f"**Year:** {response['year']}")
