@@ -11,6 +11,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib import colors
 from reportlab.lib.utils import simpleSplit
 from models import PaintingInfo, New_paint
+import requests
 
 import tinify
 
@@ -35,9 +36,10 @@ st.set_page_config(page_title="Painting Reader", layout="centered")
 config = dotenv_values(".env")
 
 #TINFY api key
-# tinify.key = st.secrets["TINIFY"]
-tinify.key = config["TINIFY"]
-
+tinify.key = st.secrets["TINIFY"]
+google_api = st.secrets["GOOGLE_API"]
+CX = st.secrets["CX"]
+SEARCH_URL = st.secrets["SEARCH_URL"]
 
 
 def setup_api_key():
@@ -482,6 +484,26 @@ def display_painting_details(response: dict, file: BytesIO):
                 st.markdown(f"**Title:** {recommendation.get('title', 'N/A')}")
                 st.markdown(f"**Author:** {recommendation.get('author', 'N/A')}")
                 st.markdown(f"**Year:** {recommendation.get('year', 'N/A')}")
+
+                query = f"{recommendation.get('title', 'N/A')}, {recommendation.get('author', 'N/A')}, {recommendation.get('year', 'N/A')}"
+                print(f"{query}")
+                params = {
+                        "q": query,
+                        "cx": CX,
+                        "key": google_api,
+                        "searchType": "image",
+                        "num": 1,  
+                    }
+                response = requests.get(SEARCH_URL, params=params).json()
+                print(f"Response to: {response['items']}")
+                if "items" in response:
+                    image_url = response["items"][0]["link"]
+                    st.image(image_url, caption=query, use_container_width=True)
+
+                else:
+                    st.warning("Nie znaleziono obrazu.")
+
+
 
 # Render the UI
 uploaded_files = render_sidebar(None)
