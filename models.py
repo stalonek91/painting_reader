@@ -13,3 +13,8 @@ class New_paint(BaseModel):
     author: str
     year: int
     total_tokens_usage_cost_text_to_text: int
+
+
+class New_audio(BaseModel):
+    audio_file: str
+    total_tokens_usage_cost_text_to_text: int
